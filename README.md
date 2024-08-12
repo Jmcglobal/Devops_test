@@ -57,7 +57,7 @@ First, tag the image to ECR image URl or public image URl on dockerhub
 
 Create a secret resource on default name space
 
-"""
+```
 apiVersion: v1
 kind: Secret
 metadata:
@@ -70,8 +70,7 @@ data:
   DATABASE: bW9uZ29kYitzcnY6Ly9heW9vbGF2aWN0b3I0MTU6PHBhc3N3b3JkPkBjbHVzdGVyMC5hcnF3eS5tb25nb2RiLm5ldC8/cmV0cnlXcml0ZXM9dHJ1ZSZ3PW1ham9yaXR5JmFwcE5hbWU9Q2x1c3RlcjA=
   DATABASE_PASSWORD: VUtQTDRQWmpQSFBkSW5scg==
   JWT_SECRET: dGhpcy1pcy1hLXZlcnktc2VjdXJlZC1wYXNzd29yZHM=
-
-"""
+```
 save above secret config in a file .yml extension and run 
 
 - kubectl apply -f secret.yml
