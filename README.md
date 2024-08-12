@@ -379,4 +379,6 @@ EOF
 
 - https://test.jmctech.xyz
 
-- monitor.jmctech.xyz (username = admin , Password = prom-operator)
+- monitor.jmctech.xyz
+
+Password for Grafana = (username = admin , Password = prom-operator)
