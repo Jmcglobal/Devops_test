@@ -297,15 +297,17 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: pod-reader
+  namespace: default
 subjects:
 - kind: User
-  name: readUser
+  name: jmc
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: ClusterRole
   name: pod-reader
   apiGroup: rbac.authorization.k8s.io
-
+EOF
+```
 Above have created a RBAC roles and the access privilege the user needs to have, to complete the access pattern ( A service account can be used, this is mostly used for a created resource) for a User access)
 
 - Generate certificates for the user.
@@ -319,3 +321,56 @@ Above have created a RBAC roles and the access privilege the user needs to have,
 - Add RBAC rules for the user or their group.
 
 The above will accomplished a highly secure access for users on the kubernets cluster, while service account can be used to secure resource access on the namespace
+
+
+### Deploy Grafan and Prometheus Using helm chart
+
+kubectl create ns monitor
+
+#### ONE HELM INSTALLATION, 
+
+Prometheus operator helm installation, which will install prometheus, grafana and alert manager
+
+- helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+
+- helm repo update
+
+- helm install prometheus -n monitor prometheus-community/kube-prometheus-stack
+
+## Confirm installations
+
+kubectl get all -n monitor
+
+## optionally expose grafana service to accessible, deploy issuer before the ingress
+
+
+```
+cat <<EOF | kubectl apply -f -
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gradell-ingress
+  labels:
+    api: gradell
+  namespace: monitor
+  annotations:
+    cert-manager.io/issuer: letsencrypt-nginx
+spec:
+  tls:
+    - hosts:
+      - monitor.jmctech.xyz
+      secretName: letsencrypt-nginx-gradell
+  ingressClassName: nginx
+  rules:
+    - host: monitor.jmctech.xyz
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus-grafana
+                port:
+                  number: 80
+EOF
+```
