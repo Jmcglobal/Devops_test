@@ -1,15 +1,17 @@
 name: Deploy Image to ECR | Docker and Apply to Cluster
-
+## trigger on push event
 on:
   push:
     branches: [ master ]
 
+## Setup Environment variables
 env:
   ECR_REPOSITORY: gradell-test
   EKS_CLUSTER_NAME: gradell
   AWS_REGION: us-east-1
   DEPLOY_NAME: gradell
 
+## Define Jobs
 jobs:
   
   build:
@@ -19,13 +21,16 @@ jobs:
 
     steps:
 
+    ## Set Cutom Image Tag with date format and Github sha and make it available as Default Environment variable
     - name: Set Image Tag
       run: |
         echo "IMAGE_TAG=$(date +%Y-%m-%d-%H-%M)-${GITHUB_SHA::4}" >> $GITHUB_ENV
 
+    ## Checkout the code
     - name: Check out code
       uses: actions/checkout@v2
     
+    ## Configure Credentials to Allow Access to EKS cluster, ECR, or Docker privtae repositpry ( I have used ECR here)
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v1
       with:
@@ -33,10 +38,12 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{env.AWS_REGION}}
 
+    ## Login to ECR
     - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v1
 
+    ## Build Image and push to ECR
     - name: Build, tag, and push image to Amazon ECR
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}        
@@ -44,9 +51,11 @@ jobs:
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG  .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
+    ## update EKS kubeconfig
     - name: Update kube config
       run: aws eks update-kubeconfig --name $EKS_CLUSTER_NAME --region $AWS_REGION
 
+    ## Deploy to EKS (Update the image on deployment file using sed editor)
     - name: Deploy to EKS
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}        
@@ -54,6 +63,7 @@ jobs:
         sed -i.bak 's|image: .*|image: '"$ECR_REGISTRY"'/'"$ECR_REPOSITORY"':'"$IMAGE_TAG"'|g' $GITHUB_WORKSPACE/kub-deployment/Deployment.yml
         kubectl apply -f $GITHUB_WORKSPACE/kub-deployment/Deployment.yml
 
+    ## verify deployment afetr 30seconds
     - name: Verify deployment
       run: |
         sleep 30s

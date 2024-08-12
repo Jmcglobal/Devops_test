@@ -55,7 +55,7 @@ First, tag the image to ECR image URl or public image URl on dockerhub
 
 ## Create a secret resource on kubernetes default namespace
 
-Create a secret resource on default name space
+Create a secret resource on default name space, encode every value to base64 format, either using cli or third party tool
 
 ```
 apiVersion: v1
@@ -65,11 +65,11 @@ metadata:
   namespace: default
 type: Opaque
 data:
-  NODE_ENV: ZGV2ZWxvcG1lbnQ=
-  PORT: MzAwMA==
-  DATABASE: bW9uZ29kYitzcnY6Ly9heW9vbGF2aWN0b3I0MTU6PHBhc3N3b3JkPkBjbHVzdGVyMC5hcnF3eS5tb25nb2RiLm5ldC8/cmV0cnlXcml0ZXM9dHJ1ZSZ3PW1ham9yaXR5JmFwcE5hbWU9Q2x1c3RlcjA=
-  DATABASE_PASSWORD: VUtQTDRQWmpQSFBkSW5scg==
-  JWT_SECRET: dGhpcy1pcy1hLXZlcnktc2VjdXJlZC1wYXNzd29yZHM=
+  NODE_ENV: ""
+  PORT: ""
+  DATABASE: ""
+  DATABASE_PASSWORD: ""
+  JWT_SECRET: ""
 ```
 save above secret config in a file .yml extension and run 
 
@@ -111,3 +111,146 @@ With above command, you can confirm successfull creation of deployment which the
 ![EB618D57-1A90-4BBC-B8D5-91584561463D_4_5005_c](https://github.com/user-attachments/assets/c4f394ce-06c7-4433-bcba-f0e60af58a4a)
 
 
+### CICD 
+
+The CICD implementation is going to always run whenever a push event is made on the repository.
+
+- A developer pushes the code,
+
+- The CICD workflow on push event will trigger,
+
+- On the action file, several steps will be run, which include;
+
+  - Code checkout
+
+  - Setup up requirement environment details and any tools that is defined
+
+  - Authenticate to ECR on AWS account
+
+  - build the docker image
+
+  - After successfull build, push the image to repository
+
+  - Update kubeconfig to grant access to run kubectl command on EKS
+
+  - Update Image value on deployment file
+
+  - Apply the deployment file 
+
+  - wait for a few seconds to verify the status
+
+- Done
+  
+### TLS/SSL implementation
+
+- By default, the deployment service is not exposed to the internet, as it is running on ClusterIP mode. To expose the deployment service, you can either use NodePort service type or LoadBalancer. NodePort is not secure and not recommended to be used, only if it is necessary for testing only. To achieve SSL/TLS, loadbalancer is best option, using Ingress ALB and certificate Manager. AWS also has an ALB ingress method that can be integrated to ACM. 
+
+### Deploy Ingress LoadBalancer, using helm chart
+
+- helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+
+Optional change from Deployment type to DaemonSet, so that it can be highly available across running nodes. It can be achieved by modifying the chart values
+
+#### Update repo and deploy
+
+- helm repo update
+
+- kubectl create ns ingress-alb
+
+- helm install -n <namespace> [RELEASE_NAME] ingress-nginx/ingress-nginx
+
+- helm install -n ingress-alb ingress ingress-nginx/ingress-nginx 
+
+## check installation
+
+- kubectl get all -n ingress-alb
+
+This command will get all resources on ingress-alb namespace, and the ingress service and pod will be running 
+
+- NOTE: TLS/SSL required a valid registered domain name, for purpose of testing, I will use a test dns
+
+#### Deploy Certificate Manager using helm chart
+
+##### INSTALL CRDS FOR CERT-MANAGER
+
+- kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.14.5/cert-manager.crds.yaml
+
+## Add the Jetstack Helm repository
+-  helm repo add jetstack https://charts.jetstack.io
+
+- kubectl create ns cert-manager
+
+- helm install cert-manager -n cert-manager --version v1.14.5 cert-manager/cert-manager
+
+## verify installations by using helm list with namespace
+
+- helm list -n cert-manager
+
+## Deploy A cluster Isuer or namespace issuer that will generate and signed SSL 
+
+Deploy namespace issuer
+
+```
+cat <<EOF | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: letsencrypt-nginx
+  namespace: default
+spec:
+  acme:
+    # Email address used for ACME registration
+    email: mmadubugwuchibuife@gmail.com
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      # Name of a secret used to store the ACME account private key
+      name: letsencrypt-gredell-private-key
+    # Add a single challenge solver, HTTP01 using nginx
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+EOF
+```
+
+### verify
+
+- kubectl get issuer
+
+### Deploy ingress resource with SSL/TLS (jmctech.xyz domain name)
+
+```
+cat <<EOF | kubectl apply -f -
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gradell-ingress
+  labels:
+    api: gradell
+  namespace: default
+  annotations:
+    cert-manager.io/issuer: letsencrypt-nginx
+spec:
+  tls:
+    - hosts:
+      - test.jmctech.xyz
+      secretName: letsencrypt-nginx-gradell
+  ingressClassName: nginx
+  rules:
+    - host: test.jmctech.xyz
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gradell-svc
+                port:
+                  number: 80
+EOF
+```
+### Confirm certificates request
+
+- kubectl get certificaterequest 
+
+- kubectl get certificates
