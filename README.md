@@ -374,3 +374,9 @@ spec:
                   number: 80
 EOF
 ```
+
+### URL (available for 48 hours)
+
+- https://test.jmctech.xyz
+
+- monitor.jmctech.xyz (username = admin , Password = prom-operator)
