@@ -167,6 +167,8 @@ Optional change from Deployment type to DaemonSet, so that it can be highly avai
 
 This command will get all resources on ingress-alb namespace, and the ingress service and pod will be running 
 
+![4042EB93-E16C-443F-9607-9617EBFDC99E_4_5005_c](https://github.com/user-attachments/assets/c9dc459e-29e3-4500-8918-23ba0be2e8f2)
+
 - NOTE: TLS/SSL required a valid registered domain name, for purpose of testing, I will use a test dns
 
 #### Deploy Certificate Manager using helm chart
@@ -217,6 +219,8 @@ EOF
 
 - kubectl get issuer
 
+![53108862-E280-4CA6-A2F4-925F94121B18_4_5005_c](https://github.com/user-attachments/assets/305a8b0d-9800-4294-9d65-7a891acac010)
+
 ### Deploy ingress resource with SSL/TLS (jmctech.xyz domain name)
 
 ```
@@ -249,8 +253,69 @@ spec:
                   number: 80
 EOF
 ```
-### Confirm certificates request
+### Confirm certificates request (test.jmctech.xyz)
 
 - kubectl get certificaterequest 
 
 - kubectl get certificates
+
+![996B3B48-4B32-44D5-B4C5-9751EC79D26C_4_5005_c](https://github.com/user-attachments/assets/3bb070a1-7643-45f9-a68c-5f0b51b13104)
+
+- Access through https://test.jmctech.yml
+
+#### Configure RBAC for restricted access
+
+RBAC can be used to configure different access patterns (Read, Write, Delete)  on resources on kubernetes cluster, and specific to namespace and the whole cluster
+
+And RBAC can be used to restrict pod access, by default every created pod uses a default service account on the namespace.
+
+### Create RBAC clusterrole, role binding to allow get, list, watch, create, pod log, pod exec
+
+```
+cat <<EOF | kubectl apply -f - 
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pod-reader
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["get", "create"]
+EOF
+```
+
+### RoleBinding
+```
+cat <<EOF | kubectl apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pod-reader
+subjects:
+- kind: User
+  name: readUser
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io
+
+Above have created a RBAC roles and the access privilege the user needs to have, to complete the access pattern ( A service account can be used, this is mostly used for a created resource) for a User access)
+
+- Generate certificates for the user.
+
+- Create a certificate signing request (CSR).
+
+- Sign the certificate using the cluster certificate authority.
+
+- Create a configuration specific to the user.
+
+- Add RBAC rules for the user or their group.
+
+The above will accomplished a highly secure access for users on the kubernets cluster, while service account can be used to secure resource access on the namespace
