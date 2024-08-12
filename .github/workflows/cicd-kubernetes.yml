@@ -1,0 +1,60 @@
+name: Deploy Image to ECR | Docker and Apply to Cluster
+
+on:
+  push:
+    branches: [ master ]
+
+env:
+  ECR_REPOSITORY: gradell-test
+  EKS_CLUSTER_NAME: gradell
+  AWS_REGION: us-east-1
+  DEPLOY_NAME: gradell
+
+jobs:
+  
+  build:
+    
+    name: Deployment
+    runs-on: ubuntu-latest
+
+    steps:
+
+    - name: Set Image Tag
+      run: |
+        echo "IMAGE_TAG=$(date +%Y-%m-%d-%H-%M)-${GITHUB_SHA::4}" >> $GITHUB_ENV
+
+    - name: Check out code
+      uses: actions/checkout@v2
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{env.AWS_REGION}}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Build, tag, and push image to Amazon ECR
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}        
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG  .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+    - name: Update kube config
+      run: aws eks update-kubeconfig --name $EKS_CLUSTER_NAME --region $AWS_REGION
+
+    - name: Deploy to EKS
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}        
+      run: |
+        sed -i.bak 's|image: .*|image: '"$ECR_REGISTRY"'/'"$ECR_REPOSITORY"':'"$IMAGE_TAG"'|g' $GITHUB_WORKSPACE/kub-deployment/Deployment.yml
+        kubectl apply -f $GITHUB_WORKSPACE/kub-deployment/Deployment.yml
+
+    - name: Verify deployment
+      run: |
+        sleep 30s
+        kubectl rollout status deployment/$(echo $DEPLOY_NAME)

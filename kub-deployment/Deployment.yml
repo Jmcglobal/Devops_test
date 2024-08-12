@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gradell
+  namespace: default
+  labels:
+    api: gradell
+spec:
+  replicas: 1
+  strategy: 
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      api: gradell
+  template:
+    metadata:
+      labels:
+        api: gradell
+    spec:
+      securityContext:
+        runAsUser: 1001
+        runAsGroup: 1001
+      containers:
+      - name: gradell
+        image: jmcglobal/gradell-test:latest
+        securityContext:
+          allowPrivilegeEscalation: false
+        ports:
+          - containerPort: 3000
+        resources:
+          requests:
+            memory: "100Mi"
+            cpu: "40m"
+          limits:
+            memory: "200Mi"
+            cpu: "100m"
+        envFrom:
+        - secretRef:
+            name: gradell-secret
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: gradell-svc
+  namespace: default
+spec:
+  selector:
+    api: gradell
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+  type: ClusterIP
