@@ -10,7 +10,6 @@ env:
   EKS_CLUSTER_NAME: gradell
   AWS_REGION: us-east-1
   DEPLOY_NAME: gradell
-  IMAGE_TAG: echo "IMAGE_TAG=$(date +%Y-%m-%d-%H-%M)-${GITHUB_SHA::6}"
 
 ## Define Jobs
 jobs:
@@ -25,8 +24,9 @@ jobs:
     ## Set Cutom Image Tag with date format and Github sha and make it available as Default Environment variable
     - name: Set Image Tag
       run: |
-        # echo "IMAGE_TAG=$(date +%Y-%m-%d-%H-%M)-${GITHUB_SHA::4}" >> $GITHUB_ENV
+        echo "IMAGE_TAG=$(date +%Y-%m-%d-%H-%M)-${GITHUB_SHA::4}" >> $GITHUB_OUTPUT
         echo $IMAGE_TAG
+        IMAGE=$IMAGE_TAG
       
 
     ## Checkout the code
@@ -40,6 +40,19 @@ jobs:
     #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
     #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     #     aws-region: ${{env.AWS_REGION}}
+
+  tests_tag:
+    
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+
+    ## Set Cutom Image Tag with date format and Github sha and make it available as Default Environment variable
+    - name: Set Image Tag
+      run: |
+        echo $IMAGE_TAG
+        IMAGE=$IMAGE_TAG
 
     ## Login to ECR
     # - name: Login to Amazon ECR
